@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>999 · agent computer</title>
+    <style>
+      :root {
+        --bg: #0f1115; --panel: #171a21; --line: #272b36; --fg: #e6e8ee;
+        --muted: #9aa3b2; --accent: #6ea8fe; --ok: #4ec98f; --warn: #e0b64a; --err: #e06a6a;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--fg);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+      header { padding: 14px 20px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: baseline; }
+      header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
+      header .sub { color: var(--muted); font-size: 13px; }
+      main { display: grid; grid-template-columns: 400px 1fr; height: calc(100vh - 53px); }
+      .left { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+      .tabs { display: flex; border-bottom: 1px solid var(--line); }
+      .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
+      .tab.active { color: var(--fg); border-bottom-color: var(--accent); }
+      .new { padding: 14px; border-bottom: 1px solid var(--line); }
+      textarea, input[type=text], input[type=number], select {
+        width: 100%; background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+        border-radius: 8px; padding: 8px 10px; font: inherit; }
+      textarea { resize: vertical; min-height: 64px; }
+      .row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+      .row > * { min-width: 0; }
+      button { background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+        border-radius: 8px; padding: 7px 12px; cursor: pointer; font: inherit; white-space: nowrap; }
+      button.primary { background: var(--accent); color: #0b0d12; border-color: var(--accent); font-weight: 600; }
+      button:hover { border-color: var(--accent); }
+      .list { overflow-y: auto; flex: 1; }
+      .item { padding: 12px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+      .item:hover { background: #1b1f28; }
+      .item.sel { background: #1e2430; }
+      .item .title { font-size: 14px; margin-bottom: 5px; word-break: break-word; }
+      .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; border: 1px solid var(--line); color: var(--muted); }
+      .badge.running, .badge.active { color: var(--accent); border-color: var(--accent); }
+      .badge.completed { color: var(--ok); border-color: var(--ok); }
+      .badge.failed, .badge.cancelled { color: var(--err); border-color: var(--err); }
+      .badge.paused { color: var(--warn); border-color: var(--warn); }
+      .badge.ok { color: var(--ok); border-color: var(--ok); }
+      .badge.pending { color: var(--muted); }
+      .sub2 { color: var(--muted); font-size: 12px; }
+      .detail { padding: 20px; overflow-y: auto; min-height: 0; }
+      .detail h2 { font-size: 16px; margin: 0 0 6px; word-break: break-word; }
+      .meta { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+      .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; margin-top: 14px; }
+      .op { padding: 8px 10px; border-left: 2px solid var(--line); margin-bottom: 6px; background: var(--panel); border-radius: 0 6px 6px 0; }
+      .op .k { color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: .5px; }
+      .op.tool_call { border-left-color: var(--accent); }
+      .op.error { border-left-color: var(--err); }
+      .op.model, .op.human { border-left-color: var(--warn); }
+      .op pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; }
+      .empty { color: var(--muted); padding: 40px; text-align: center; }
+      label.fld { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 2px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>999</h1>
+      <span class="sub">a personal agent with its own computer</span>
+      <span class="sub" id="health" style="margin-left:auto"></span>
+    </header>
+    <main>
+      <div class="left">
+        <div class="tabs">
+          <div class="tab active" data-view="tasks">Tasks</div>
+          <div class="tab" data-view="goals">Goals</div>
+        </div>
+
+        <div id="pane-tasks">
+          <div class="new">
+            <textarea id="goal" placeholder="Describe the goal, e.g. 'Open example.com and save a 2-line summary to notes.md'"></textarea>
+            <div class="row">
+              <button class="primary" id="create-task">Start task</button>
+              <input type="text" id="token" placeholder="API token (if set)" />
+            </div>
+          </div>
+        </div>
+
+        <div id="pane-goals" style="display:none">
+          <div class="new">
+            <input type="text" id="g-name" placeholder="Goal name, e.g. 'Widget price watch'" />
+            <input type="text" id="g-url" placeholder="https://… page to watch" style="margin-top:8px" />
+            <div class="row">
+              <select id="g-type">
+                <option value="contains">contains text</option>
+                <option value="absent">text absent</option>
+                <option value="regex">regex matches</option>
+                <option value="price_below">price below</option>
+              </select>
+              <input type="text" id="g-value" placeholder="text / pattern / number" />
+            </div>
+            <div class="row">
+              <input type="text" id="g-selector" placeholder="CSS selector (optional)" />
+              <input type="number" id="g-interval" placeholder="interval s" style="max-width:110px" />
+              <button class="primary" id="create-goal">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="list" id="list"></div>
+      </div>
+      <div class="detail" id="detail"><div class="empty">Select an item to see details.</div></div>
+    </main>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      let view = "tasks";
+      let sel = null;           // selected id
+      let es = null;            // EventSource for the selected task
+
+      function token() { return $("#token").value.trim(); }
+      function authHeaders() { const t = token(); return t ? { Authorization: "Bearer " + t } : {}; }
+      function tokenQS() { const t = token(); return t ? ("?token=" + encodeURIComponent(t)) : ""; }
+
+      async function api(path, opts = {}) {
+        const res = await fetch(path, {
+          ...opts,
+          headers: { "Content-Type": "application/json", ...authHeaders(), ...(opts.headers || {}) },
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+        return res.status === 204 ? null : res.json();
+      }
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+      function badge(s) { return `<span class="badge ${s}">${s}</span>`; }
+
+      async function refreshHealth() {
+        try {
+          const h = await fetch("/health").then((r) => r.json());
+          $("#health").textContent = `model ${h.model} · chromium ${h.chromiumReady ? "ready" : "not installed"}`;
+        } catch { /* ignore */ }
+      }
+
+      // ---------- tabs ----------
+      document.querySelectorAll(".tab").forEach((t) =>
+        t.addEventListener("click", () => {
+          view = t.dataset.view;
+          document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
+          $("#pane-tasks").style.display = view === "tasks" ? "" : "none";
+          $("#pane-goals").style.display = view === "goals" ? "" : "none";
+          sel = null; closeES();
+          $("#detail").innerHTML = `<div class="empty">Select an item to see details.</div>`;
+          refreshList();
+        }));
+
+      // ---------- list ----------
+      async function refreshList() {
+        if (view === "tasks") return refreshTaskList();
+        return refreshGoalList();
+      }
+
+      async function refreshTaskList() {
+        let tasks;
+        try { tasks = await api("/api/tasks"); } catch { return; }
+        $("#list").innerHTML = tasks.map((t) => `
+          <div class="item ${t.id === sel ? "sel" : ""}" data-id="${t.id}">
+            <div class="title">${escapeHtml(t.goal)}</div>
+            <div class="row" style="margin-top:0">${badge(t.status)}
+              <span class="sub2">${t.steps}/${t.maxSteps} steps · ${t.operations} ops${t.parentId ? " · subagent" : ""}</span>
+            </div>
+          </div>`).join("") || `<div class="empty">No tasks yet.</div>`;
+        bindList(selectTask);
+      }
+
+      async function refreshGoalList() {
+        let goals;
+        try { goals = await api("/api/goals"); } catch { return; }
+        $("#list").innerHTML = goals.map((g) => `
+          <div class="item ${g.id === sel ? "sel" : ""}" data-id="${g.id}">
+            <div class="title">${escapeHtml(g.name)}</div>
+            <div class="row" style="margin-top:0">${badge(g.status)}
+              ${g.triggeredAt ? badge("ok") : (g.lastCheckedAt ? '<span class="badge pending">watching</span>' : '<span class="badge pending">new</span>')}
+              <span class="sub2">${g.condition.type}${g.lastCheckedAt ? " · last " + new Date(g.lastCheckedAt).toLocaleTimeString() : ""}</span>
+            </div>
+          </div>`).join("") || `<div class="empty">No goals yet.</div>`;
+        bindList(selectGoal);
+      }
+
+      function bindList(onClick) {
+        document.querySelectorAll("#list .item").forEach((n) =>
+          n.addEventListener("click", () => onClick(n.dataset.id)));
+      }
+
+      // ---------- task detail (live via SSE) ----------
+      function closeES() { if (es) { es.close(); es = null; } }
+
+      function selectTask(id) {
+        sel = id; closeES();
+        es = new EventSource(`/api/tasks/${id}/events` + tokenQS());
+        es.onmessage = (ev) => renderTaskDetail(JSON.parse(ev.data));
+        refreshTaskList();
+      }
+
+      function renderTaskDetail(t) {
+        const actions = ["pause", "resume", "cancel", "retry"]
+          .map((a) => `<button data-a="${a}">${a[0].toUpperCase() + a.slice(1)}</button>`).join("");
+        const log = t.log.slice().reverse().map((op) => `
+          <div class="op ${op.kind}">
+            <span class="k">${op.kind}</span> · <span class="sub2">${new Date(op.at).toLocaleTimeString()}</span>
+            <pre>${escapeHtml(op.message)}${op.data !== undefined ? "\n" + escapeHtml(typeof op.data === "string" ? op.data : JSON.stringify(op.data, null, 2)) : ""}</pre>
+          </div>`).join("");
+        $("#detail").innerHTML = `
+          <h2>${escapeHtml(t.goal)}</h2>
+          <div class="meta">${badge(t.status)} · ${t.steps}/${t.maxSteps} steps${t.result ? " · " + escapeHtml(t.result) : ""}${t.error ? " · <span style='color:var(--err)'>" + escapeHtml(t.error) + "</span>" : ""}</div>
+          <div class="row">${actions}</div>
+          <div class="log">${log}</div>`;
+        $("#detail").querySelectorAll("button[data-a]").forEach((b) =>
+          b.addEventListener("click", async () => {
+            try { await api(`/api/tasks/${sel}/${b.dataset.a}`, { method: "POST" }); } catch (e) { alert(e.message); }
+          }));
+      }
+
+      // ---------- goal detail ----------
+      async function selectGoal(id) {
+        sel = id; closeES();
+        refreshGoalList();
+        let g; try { g = await api("/api/goals/" + id); } catch { return; }
+        const hist = g.checks.slice().reverse().map((c) => `
+          <div class="op ${c.ok ? "" : (c.error ? "error" : "")}">
+            <span class="k">${c.ok ? "OK" : "—"}</span> · <span class="sub2">${new Date(c.at).toLocaleTimeString()}</span>
+            <pre>${escapeHtml(c.detail)}${c.error ? " (" + escapeHtml(c.error) + ")" : ""}</pre>
+          </div>`).join("") || `<div class="sub2">No checks yet.</div>`;
+        $("#detail").innerHTML = `
+          <h2>${escapeHtml(g.name)}</h2>
+          <div class="meta">${badge(g.status)}${g.triggeredAt ? " · " + badge("ok") : ""} ·
+            <a href="${escapeHtml(g.url)}" target="_blank" style="color:var(--accent)">${escapeHtml(g.url)}</a></div>
+          <div class="sub2">condition: <b>${g.condition.type}</b> "${escapeHtml(g.condition.value)}"${g.condition.selector ? " in " + escapeHtml(g.condition.selector) : ""} · every ${g.intervalSec}s</div>
+          <div class="row" style="margin-top:12px">
+            <button data-g="check">Check now</button>
+            <button data-g="${g.status === "active" ? "pause" : "resume"}">${g.status === "active" ? "Pause" : "Resume"}</button>
+            <button data-g="delete">Delete</button>
+          </div>
+          <div class="log">${hist}</div>`;
+        $("#detail").querySelectorAll("button[data-g]").forEach((b) =>
+          b.addEventListener("click", async () => {
+            const a = b.dataset.g;
+            try {
+              if (a === "delete") { await api("/api/goals/" + id, { method: "DELETE" }); sel = null; $("#detail").innerHTML = `<div class="empty">Deleted.</div>`; refreshGoalList(); return; }
+              await api(`/api/goals/${id}/${a}`, { method: "POST" });
+              selectGoal(id);
+            } catch (e) { alert(e.message); }
+          }));
+      }
+
+      // ---------- create ----------
+      $("#create-task").addEventListener("click", async () => {
+        const goal = $("#goal").value.trim();
+        if (!goal) return;
+        try { const t = await api("/api/tasks", { method: "POST", body: JSON.stringify({ goal }) }); $("#goal").value = ""; selectTask(t.id); }
+        catch (e) { alert(e.message); }
+      });
+
+      $("#create-goal").addEventListener("click", async () => {
+        const body = {
+          name: $("#g-name").value.trim(),
+          url: $("#g-url").value.trim(),
+          condition: { type: $("#g-type").value, value: $("#g-value").value.trim(), selector: $("#g-selector").value.trim() || undefined },
+          intervalSec: $("#g-interval").value ? Number($("#g-interval").value) : undefined,
+        };
+        if (!body.name || !body.url || !body.condition.value) { alert("name, url, and value are required"); return; }
+        try { const g = await api("/api/goals", { method: "POST", body: JSON.stringify(body) }); ["g-name","g-url","g-value","g-selector","g-interval"].forEach((i) => ($("#" + i).value = "")); selectGoal(g.id); }
+        catch (e) { alert(e.message); }
+      });
+
+      refreshHealth();
+      refreshList();
+      setInterval(refreshList, 2500);
+      setInterval(refreshHealth, 10000);
+    </script>
+  </body>
+</html>

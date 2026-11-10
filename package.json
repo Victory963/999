@@ -1,0 +1,33 @@
+{
+  "name": "agent-computer-999",
+  "version": "0.1.0",
+  "description": "999 — a personal agent with its own computer: persistent browser, sandboxed shell, jailed workspace, and a task engine. Original work, MIT.",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json && cp -r src/server/web dist/server/web",
+    "test": "node --import tsx --test test/*.test.ts",
+    "browser:install": "playwright install chromium"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.64.1"
+  }
+}

@@ -1,0 +1,32 @@
+# Run 999 in a container. Reads ANTHROPIC_API_KEY (and optional API_TOKEN,
+# ANTHROPIC_MODEL) from your shell or a local .env file.
+#
+#   ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
+#
+# The port is bound to loopback. For real exposure, set API_TOKEN and front it
+# with a TLS reverse proxy, and put the container behind an egress firewall.
+services:
+  agent-computer-999:
+    build: .
+    image: agent-computer-999
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-5-5}
+      API_TOKEN: ${API_TOKEN:-}
+      HOST: 0.0.0.0
+      PORT: "8080"
+      WORKSPACE_DIR: /app/workspace
+    volumes:
+      - ./data/workspace:/app/workspace
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    # Stricter: make the root filesystem read-only (workspace + /tmp stay writable).
+    # Requires a writable HOME for the browser cache, so also uncomment the tmpfs line.
+    # read_only: true
+    # extra tmpfs for read_only mode:
+    #   - /home/app/.cache
